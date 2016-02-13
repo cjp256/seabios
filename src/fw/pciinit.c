@@ -269,6 +269,32 @@ static void ich9_smbus_setup(struct pci_device *dev, void *arg)
     pci_config_writeb(bdf, ICH9_SMB_HOSTC, ICH9_SMB_HOSTC_HST_EN);
 }
 
+static void intel_igd_opregion_setup(struct pci_device *dev, void *arg)
+{
+    struct romfile_s *file = romfile_find("etc/igd-opregion");
+    void *opregion;
+    u16 bdf = dev->bdf;
+
+    if (!file || !file->size)
+        return;
+
+    opregion = memalign_high(PAGE_SIZE, file->size);
+    if (!opregion) {
+        warn_noalloc();
+        return;
+    }
+
+    if (file->copy(file, opregion, file->size) < 0) {
+        free(opregion);
+        return;
+    }
+
+    pci_config_writel(bdf, 0xFC, cpu_to_le32((u32)opregion));
+
+    dprintf(1, "Intel IGD OpRegion enabled on %02x:%02x.%x\n",
+            pci_bdf_to_bus(bdf), pci_bdf_to_dev(bdf), pci_bdf_to_fn(bdf));
+}
+
 static const struct pci_device_id pci_device_tbl[] = {
     /* PIIX3/PIIX4 PCI to ISA bridge */
     PCI_DEVICE(PCI_VENDOR_ID_INTEL, PCI_DEVICE_ID_INTEL_82371SB_0,
@@ -301,6 +327,10 @@ static const struct pci_device_id pci_device_tbl[] = {
     /* 0xff00 */
     PCI_DEVICE_CLASS(PCI_VENDOR_ID_APPLE, 0x0017, 0xff00, apple_macio_setup),
     PCI_DEVICE_CLASS(PCI_VENDOR_ID_APPLE, 0x0022, 0xff00, apple_macio_setup),
+
+    /* Intel IGD OpRegion setup */
+    PCI_DEVICE_CLASS(PCI_VENDOR_ID_INTEL, PCI_ANY_ID, PCI_CLASS_DISPLAY_VGA,
+                     intel_igd_opregion_setup),
 
     PCI_DEVICE_END,
 };
