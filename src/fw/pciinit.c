@@ -272,7 +272,7 @@ static void ich9_smbus_setup(struct pci_device *dev, void *arg)
 static void intel_igd_opregion_setup(struct pci_device *dev, void *arg)
 {
     struct romfile_s *file = romfile_find("etc/igd-opregion");
-    void *opregion;
+    void *opregion, *bdsm;
     u16 bdf = dev->bdf;
 
     if (!file || !file->size)
@@ -293,6 +293,17 @@ static void intel_igd_opregion_setup(struct pci_device *dev, void *arg)
 
     dprintf(1, "Intel IGD OpRegion enabled on %02x:%02x.%x\n",
             pci_bdf_to_bus(bdf), pci_bdf_to_dev(bdf), pci_bdf_to_fn(bdf));
+
+    bdsm = memalign_high(1024 * 1024, 1024 * 1024);
+    if (!bdsm) {
+        warn_noalloc();
+        return;
+    }
+
+    pci_config_writel(bdf, 0x5C, cpu_to_le32((u32)bdsm));
+
+    dprintf(1, "Allocated 1MB reserved memory for Intel IGD stolen memory at "
+            "0x%08x\n", (u32)bdsm);
 }
 
 static const struct pci_device_id pci_device_tbl[] = {
